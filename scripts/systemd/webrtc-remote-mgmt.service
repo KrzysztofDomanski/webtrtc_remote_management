@@ -1,0 +1,15 @@
+[Unit]
+Description=WebRTC Remote Management Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/webrtc_remote_mgmt --foreground
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webrtc-remote-mgmt
+
+[Install]
+WantedBy=multi-user.target
