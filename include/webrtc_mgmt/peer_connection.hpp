@@ -79,6 +79,7 @@ public:
 
 private:
     friend class PeerConnection;
+    friend class PeerConnectionImpl;
     explicit DataChannel(std::shared_ptr<DataChannelImpl> impl);
     std::shared_ptr<DataChannelImpl> impl_;
 };

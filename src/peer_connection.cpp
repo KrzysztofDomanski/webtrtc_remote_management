@@ -35,8 +35,13 @@ public:
                     std::vector<uint8_t> vec(str.begin(), str.end());
                     onMessageCb_(vec);
                 } else {
-                    onMessageCb_(std::get<std::vector<std::byte>>(data) |
-                        [](auto b) { return static_cast<uint8_t>(b); });
+                    auto& byteVec = std::get<std::vector<std::byte>>(data);
+                    std::vector<uint8_t> uint8Vec;
+                    uint8Vec.reserve(byteVec.size());
+                    for (auto b : byteVec) {
+                        uint8Vec.push_back(static_cast<uint8_t>(b));
+                    }
+                    onMessageCb_(uint8Vec);
                 }
             }
         });
@@ -102,8 +107,26 @@ public:
         // Configure ICE servers
         if (!config.disableIceServers) {
             for (const auto& server : config.iceServers) {
-                rtc::IceServer iceServer;
-                iceServer.hostname = server.url;
+                // Parse the URL to extract hostname and port
+                std::string url = server.url;
+                std::string hostname;
+                uint16_t port = 3478; // Default STUN port
+
+                // Simple URL parsing (stun:hostname:port or turn:hostname:port)
+                if (url.find("stun:") == 0) {
+                    hostname = url.substr(5);
+                } else if (url.find("turn:") == 0) {
+                    hostname = url.substr(5);
+                }
+
+                // Extract port if present
+                size_t colonPos = hostname.find(':');
+                if (colonPos != std::string::npos) {
+                    port = static_cast<uint16_t>(std::stoi(hostname.substr(colonPos + 1)));
+                    hostname = hostname.substr(0, colonPos);
+                }
+
+                rtc::IceServer iceServer(hostname, port);
                 if (!server.username.empty()) {
                     iceServer.username = server.username;
                 }
@@ -145,7 +168,9 @@ public:
         pc_->onDataChannel([this](std::shared_ptr<rtc::DataChannel> dc) {
             if (onDataChannelCb_) {
                 auto impl = std::make_shared<DataChannelImpl>(dc);
-                DataChannel channel(impl);
+                // Create DataChannel using friend access
+                DataChannel channel;
+                channel.impl_ = impl;
                 onDataChannelCb_(std::move(channel));
             }
         });
@@ -183,8 +208,7 @@ public:
         init.reliability.unordered = !config.ordered;
 
         if (!config.reliable) {
-            init.reliability.type = rtc::Reliability::Type::Rexmit;
-            init.reliability.rexmit = 0;
+            init.reliability.maxRetransmits = 0;
         }
 
         auto dc = pc_->createDataChannel(config.label, init);
